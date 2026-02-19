@@ -16,6 +16,8 @@ public class StatsService {
 	private String gameName;
 	@Value("${portfolio.songName}")
 	private String songName;
+	@Value("${portfolio.bookName}")
+	private String bookName;
 
 	private String getSongURL() {
 		String[] songs = { "Funkadelic.mp3", // 12am - 4am
@@ -36,7 +38,7 @@ public class StatsService {
 		DateTimeFormatter formatter = DateTimeFormatter.ofPattern("h:mm");
 		String currenttime = now.format(formatter).toLowerCase();
 		String prewviewURL = getSongURL();
-		return new StatsResponse(location, gameName, currenttime, System.currentTimeMillis(), songName, prewviewURL);
+		return new StatsResponse(location, gameName, currenttime, System.currentTimeMillis(), songName, prewviewURL, bookName);
 	}
 
 }
