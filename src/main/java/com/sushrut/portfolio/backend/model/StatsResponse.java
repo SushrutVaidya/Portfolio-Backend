@@ -16,5 +16,6 @@ public class StatsResponse {
 	private long timeStamp;
 	private String songName;
 	private String songURL;
+	private String bookName;
 
 }
