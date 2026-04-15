@@ -1,19 +1,26 @@
 package com.sushrut.portfolio.backend.controller;
 
 import java.util.Map;
+import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.sushrut.portfolio.backend.entities.GameUser;
+import com.sushrut.portfolio.backend.model.PlayerCardRequest;
+import com.sushrut.portfolio.backend.model.PlayerCardResponse;
 import com.sushrut.portfolio.backend.model.StatsResponse;
 import com.sushrut.portfolio.backend.service.StatsService;
+
+import jakarta.validation.Valid;
+
 import com.sushrut.portfolio.backend.service.GameUserService;
 import com.sushrut.portfolio.backend.service.RickrollService;
 
@@ -72,6 +79,18 @@ public class controller {
 		GameUser user = gUserService.registerOrGet(firstName.trim(), lastName.trim());
 		return ResponseEntity.ok(user);
 
+	}
+
+	// Controller for Player Cards
+	@GetMapping("/user/{id}/card")
+	public ResponseEntity<PlayerCardResponse> getCard(@PathVariable UUID id) {
+		return ResponseEntity.ok(gUserService.getCard(id));
+	}
+
+	@PostMapping("/user/{id}/card")
+	public ResponseEntity<PlayerCardResponse> updateCard(@PathVariable UUID id,
+			@Valid @RequestBody PlayerCardRequest req) {
+		return ResponseEntity.ok(gUserService.updateCard(id, req));
 	}
 
 }
