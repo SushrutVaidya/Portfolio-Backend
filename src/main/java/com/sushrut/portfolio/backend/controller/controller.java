@@ -1,5 +1,6 @@
 package com.sushrut.portfolio.backend.controller;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -17,10 +18,9 @@ import com.sushrut.portfolio.backend.entities.GameUser;
 import com.sushrut.portfolio.backend.model.PlayerCardRequest;
 import com.sushrut.portfolio.backend.model.PlayerCardResponse;
 import com.sushrut.portfolio.backend.model.StatsResponse;
+import com.sushrut.portfolio.backend.model.SteamGameResponse;
 import com.sushrut.portfolio.backend.service.StatsService;
-
-import jakarta.validation.Valid;
-
+import com.sushrut.portfolio.backend.service.SteamService;
 import com.sushrut.portfolio.backend.service.GameUserService;
 import com.sushrut.portfolio.backend.service.RickrollService;
 
@@ -65,7 +65,7 @@ public class controller {
 		}
 	}
 
-	// Leaderboard for users
+	//Leaderboard for users
 	@Autowired
 	private GameUserService gUserService;
 
@@ -74,7 +74,8 @@ public class controller {
 		String firstName = body.get("firstName");
 		String lastName = body.get("lastName");
 		if (firstName == null || firstName.trim().length() < 2 || lastName == null || lastName.trim().length() < 2) {
-			return ResponseEntity.badRequest().body(Map.of("error", "Length is too short babe"));
+			return ResponseEntity.badRequest()
+					.body(Map.of("error", "Name Length is too short honey , Fill in something longer"));
 		}
 		GameUser user = gUserService.registerOrGet(firstName.trim(), lastName.trim());
 		return ResponseEntity.ok(user);
@@ -91,6 +92,13 @@ public class controller {
 	public ResponseEntity<PlayerCardResponse> updateCard(@PathVariable UUID id,
 			@Valid @RequestBody PlayerCardRequest req) {
 		return ResponseEntity.ok(gUserService.updateCard(id, req));
+	@Autowired
+	private SteamService SS;
+
+	@GetMapping("/steam/games")
+	public ResponseEntity<List<SteamGameResponse>> getSteamGames() {
+		return ResponseEntity.ok(SS.getOwnedGames());
+
 	}
 
 }
