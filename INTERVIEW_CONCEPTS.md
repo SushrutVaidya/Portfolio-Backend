@@ -1,6 +1,6 @@
 # Portfolio Backend — Interview Concepts & Learnings
 
-> Auto-updated every 5 commits. Last updated: commit `4c04780`
+> Auto-updated every 5 commits. Last updated: commit `40486cd`
 
 ---
 
@@ -16,7 +16,10 @@
 8. [Spring Boot Actuator](#8-spring-boot-actuator)
 9. [Concurrency — AtomicInteger](#9-concurrency--atomicinteger)
 10. [Deployment — Docker + EC2 + Upstash](#10-deployment--docker--ec2--upstash)
-11. [Quick Interview Cheat Sheet](#quick-interview-cheat-sheet)
+11. [JPA & Entity Design](#11-jpa--entity-design)
+12. [DTO Pattern & Validation](#12-dto-pattern--validation)
+13. [Partial Updates (PATCH-style PUT)](#13-partial-updates-patch-style-put)
+14. [Quick Interview Cheat Sheet](#quick-interview-cheat-sheet)
 
 ---
 
@@ -292,14 +295,15 @@ public class CorsConfig implements WebMvcConfigurer {
             .allowedOrigins(
                 "http://localhost:5500",
                 "http://127.0.0.1:5500",
-                "http://localhost:3000"
+                "http://localhost:3000",
+                "http://localhost:8080"
             )
-            .allowedMethods("GET", "POST", "OPTIONS")
+            .allowedMethods("GET", "POST", "PUT", "OPTIONS")
             .allowedHeaders("*");
     }
 }
 ```
-> **Interview angle:** CORS is enforced by the BROWSER, not the server. The server just needs to send the right `Access-Control-Allow-Origin` header. If you call the API from curl or Postman, CORS doesn't apply.
+> **Interview angle:** CORS is enforced by the BROWSER, not the server. The server just needs to send the right `Access-Control-Allow-Origin` header. If you call the API from curl or Postman, CORS doesn't apply. **Important:** CORS config changes require a server restart — the config is loaded once at startup into Spring's handler chain, not re-read per request.
 
 ### The `OPTIONS` preflight
 Browsers send an `OPTIONS` request first ("preflight") to ask: "Is my POST request allowed?". The server must handle OPTIONS and return the appropriate CORS headers — that's why `OPTIONS` is in `allowedMethods`.
@@ -405,6 +409,123 @@ private String getSongURL() {
 
 ---
 
+## 11. JPA & Entity Design
+
+### `@Entity` — mapping class to database table
+```java
+@Entity
+@Table(name = "game_users")
+@Data @NoArgsConstructor @AllArgsConstructor
+public class GameUser {
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
+
+    private String firstName;
+    private String lastName;
+    private String classRole;
+    private String bio;
+    private String photoUrl;
+    private String cardStyle;
+    private Integer statDev;
+    // ...
+}
+```
+> **Interview angle:** `@Entity` tells JPA this class maps to a row in a database table. `@Id` marks the primary key. `@GeneratedValue(UUID)` lets the database generate unique IDs — no collision risk even across distributed systems.
+
+### UUID vs auto-increment
+| | UUID | Auto-increment |
+|---|---|---|
+| Collision risk | Effectively zero | Zero (sequential) |
+| Distributed-safe | Yes — no coordination needed | No — needs a single source |
+| URL guessable | No | Yes — `/user/1`, `/user/2` |
+| Size | 16 bytes | 4-8 bytes |
+
+> **Interview angle:** We use UUIDs because the ID is exposed in the API URL (`/api/user/{id}/card`). Auto-increment IDs are guessable and leak information about your user count.
+
+### `@Column` for constraints
+```java
+@Column(length = 280)
+private String bio;
+
+@Column(length = 20)
+private String cardStyle;
+```
+> Database-level length constraints. Even if validation passes in Java, the DB enforces the limit as a safety net.
+
+---
+
+## 12. DTO Pattern & Validation
+
+### Why DTOs?
+The entity (`GameUser`) has all database fields including internal ones (`createdAt`, database ID). You don't want the client to set those. DTOs separate what the client sends from what the database stores.
+
+```
+Client → PlayerCardRequest (DTO) → Service → GameUser (Entity) → Database
+Database → GameUser (Entity) → Service → PlayerCardResponse (DTO) → Client
+```
+
+### Request DTO with Jakarta validation
+```java
+public class PlayerCardRequest {
+    @Size(max = 50)
+    private String classRole;
+
+    @Size(max = 280)
+    private String bio;
+
+    @Min(0) @Max(100)
+    private Integer statDev;
+
+    @Min(1) @Max(5)
+    private Integer wantedLevel;
+}
+```
+> **Interview angle:** Jakarta validation annotations (`@Size`, `@Min`, `@Max`) are declarative — you define constraints and the framework enforces them. `@Valid` on the controller param triggers validation automatically. Returns 400 with details on failure.
+
+### Response DTO — shaping the output
+```java
+public class PlayerCardResponse {
+    private UUID id;
+    private String firstName;
+    private Map<String, Integer> stats;    // flattened from 5 entity fields
+    private List<String> traits;           // parsed from comma-separated string
+    private Boolean profileComplete;       // computed, not stored
+}
+```
+> **Interview angle:** The response DTO transforms internal data structure into what the frontend needs. `stats` is a `LinkedHashMap` to maintain key order (DEV → DESIGN → BRAIN → SOCIAL → GRIND). `traits` splits `"Gamer,Cook"` into `["Gamer", "Cook"]`. `profileComplete` is derived — never trust the client to tell you if a profile is complete.
+
+---
+
+## 13. Partial Updates (PATCH-style PUT)
+
+### The problem
+User wants to update just their bio — they shouldn't have to send all 15 fields.
+
+### The solution — null-safe field mapping
+```java
+public GameUser updateCard(UUID userId, PlayerCardRequest req) {
+    GameUser user = repo.findById(userId).orElseThrow();
+
+    if (req.getClassRole() != null) user.setClassRole(req.getClassRole());
+    if (req.getBio() != null)       user.setBio(req.getBio());
+    if (req.getStatDev() != null)   user.setStatDev(req.getStatDev());
+    // ... repeat for each field
+
+    return repo.save(user);
+}
+```
+> **Interview angle:** `null` means "not sent" — only overwrite fields that are non-null in the request. This is PATCH semantics on a PUT endpoint. True PUT should replace the entire resource. We chose this pragmatic hybrid because our frontend always sends all fields, but partial updates still work for testing via Postman.
+
+### Why not use PATCH?
+- PUT is simpler — one endpoint, one DTO
+- Our frontend always sends the full object anyway
+- PATCH with JSON Merge Patch or JSON Patch adds complexity for no practical gain here
+
+> **Interview answer:** "We use PUT with null-safe updates as a pragmatic choice. In a larger API, I'd use PATCH with a proper merge strategy and PUT for full replacement."
+
+---
+
 ## Quick Interview Cheat Sheet
 
 | Concept | One-liner |
@@ -416,6 +537,7 @@ private String getSongURL() {
 | `AtomicInteger` vs `int++` | `AtomicInteger` is thread-safe via CAS; `int++` is 3 ops, not atomic |
 | `${ENV:default}` syntax | Use env var if set, otherwise fall back to default value |
 | CORS is browser-enforced | Server sends headers, browser decides. curl/Postman ignores CORS |
+| CORS needs restart | Config loaded once at startup — no hot reload |
 | OPTIONS preflight | Browser asks permission before cross-origin POST/PUT |
 | Actuator `/health` | Used by Docker/K8s to decide if container should receive traffic |
 | `disablePeerVerification()` | Skip SSL cert hostname check — needed for cloud Redis dynamic IPs |
@@ -424,7 +546,14 @@ private String getSongURL() {
 | Graceful degradation | System keeps working at reduced capability when a dependency fails |
 | Lettuce vs Jedis | Lettuce = non-blocking, single connection; Jedis = blocking, pool |
 | `management.health.redis.enabled=false` | Prevent Redis failure from marking app as DOWN in health check |
+| JPA `@Entity` | Maps a Java class to a database table — each instance = one row |
+| `@GeneratedValue(UUID)` | Database generates unique UUID primary keys — no collision risk |
+| Request DTO vs Response DTO | Request = what client sends (validated), Response = what server returns (shaped) |
+| Jakarta `@Valid` | Triggers bean validation on controller method params — returns 400 on failure |
+| Null-safe partial update | Only overwrite fields that are non-null in the request — preserves existing data |
+| `LinkedHashMap` for ordered JSON | Maintains insertion order — stats always render DEV → DESIGN → BRAIN → SOCIAL → GRIND |
+| `profileComplete` flag | Computed field — derive from data state, don't trust client to set it |
 
 ---
 
-*Updated at commit `4c04780` — next update at commit 5 from here*
+*Updated at commit `40486cd` — next update at commit 5 from here*
