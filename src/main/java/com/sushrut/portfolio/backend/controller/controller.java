@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -24,9 +25,12 @@ import com.sushrut.portfolio.backend.service.SteamService;
 import com.sushrut.portfolio.backend.service.GameUserService;
 import com.sushrut.portfolio.backend.service.RickrollService;
 
+import jakarta.validation.Valid;
+
 @RestController
 @RequestMapping("/api")
 public class controller {
+
 	@Autowired
 	private StatsService ss;
 
@@ -35,6 +39,12 @@ public class controller {
 
 	@Autowired
 	private RedisTemplate<String, String> redisTemplate;
+
+	@Autowired
+	private GameUserService gUserService;
+
+	@Autowired
+	private SteamService steamService;
 
 	@GetMapping("/stats")
 	public StatsResponse getStats() {
@@ -65,10 +75,6 @@ public class controller {
 		}
 	}
 
-	//Leaderboard for users
-	@Autowired
-	private GameUserService gUserService;
-
 	@PostMapping("/user")
 	public ResponseEntity<?> registerUser(@RequestBody Map<String, String> body) {
 		String firstName = body.get("firstName");
@@ -79,26 +85,22 @@ public class controller {
 		}
 		GameUser user = gUserService.registerOrGet(firstName.trim(), lastName.trim());
 		return ResponseEntity.ok(user);
-
 	}
 
-	// Controller for Player Cards
 	@GetMapping("/user/{id}/card")
 	public ResponseEntity<PlayerCardResponse> getCard(@PathVariable UUID id) {
 		return ResponseEntity.ok(gUserService.getCard(id));
 	}
 
-	@PostMapping("/user/{id}/card")
+	@PutMapping("/user/{id}/card")
 	public ResponseEntity<PlayerCardResponse> updateCard(@PathVariable UUID id,
 			@Valid @RequestBody PlayerCardRequest req) {
 		return ResponseEntity.ok(gUserService.updateCard(id, req));
-	@Autowired
-	private SteamService SS;
+	}
 
 	@GetMapping("/steam/games")
 	public ResponseEntity<List<SteamGameResponse>> getSteamGames() {
-		return ResponseEntity.ok(SS.getOwnedGames());
-
+		return ResponseEntity.ok(steamService.getOwnedGames());
 	}
 
 }
