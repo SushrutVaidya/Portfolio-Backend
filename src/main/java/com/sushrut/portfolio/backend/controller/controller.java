@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.sushrut.portfolio.backend.entities.GameUser;
+import com.sushrut.portfolio.backend.model.JukeboxTrack;
 import com.sushrut.portfolio.backend.model.PlayerCardRequest;
 import com.sushrut.portfolio.backend.model.PlayerCardResponse;
 import com.sushrut.portfolio.backend.model.StatsResponse;
@@ -24,6 +25,7 @@ import com.sushrut.portfolio.backend.service.StatsService;
 import com.sushrut.portfolio.backend.service.SteamService;
 import com.sushrut.portfolio.backend.service.GameUserService;
 import com.sushrut.portfolio.backend.service.RickrollService;
+import com.sushrut.portfolio.backend.service.JukeboxService;
 
 import jakarta.validation.Valid;
 
@@ -36,6 +38,9 @@ public class controller {
 
 	@Autowired
 	private RickrollService rickrollService;
+
+	@Autowired
+	private JukeboxService jukeboxService;
 
 	@Autowired
 	private RedisTemplate<String, String> redisTemplate;
@@ -98,9 +103,31 @@ public class controller {
 		return ResponseEntity.ok(gUserService.updateCard(id, req));
 	}
 
+	@PostMapping("/score")
+	public ResponseEntity<Map<String, Object>> submitScore(@RequestBody Map<String, Object> body) {
+		try {
+			UUID userId = UUID.fromString((String) body.get("userId"));
+			int wpm      = ((Number) body.getOrDefault("wpm",      0)).intValue();
+			int accuracy = ((Number) body.getOrDefault("accuracy", 0)).intValue();
+			return ResponseEntity.ok(gUserService.submitScore(userId, wpm, accuracy));
+		} catch (Exception e) {
+			return ResponseEntity.badRequest().build();
+		}
+	}
+
+	@GetMapping("/leaderboard")
+	public ResponseEntity<List<Map<String, Object>>> getLeaderboard() {
+		return ResponseEntity.ok(gUserService.getLeaderboard());
+	}
+
 	@GetMapping("/steam/games")
 	public ResponseEntity<List<SteamGameResponse>> getSteamGames() {
 		return ResponseEntity.ok(steamService.getOwnedGames());
+	}
+
+	@GetMapping("/jukebox/tracks")
+	public ResponseEntity<List<JukeboxTrack>> getJukeboxTracks() {
+		return ResponseEntity.ok(jukeboxService.getTracks());
 	}
 
 }
