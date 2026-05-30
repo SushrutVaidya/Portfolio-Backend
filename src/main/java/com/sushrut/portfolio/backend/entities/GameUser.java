@@ -73,4 +73,10 @@ public class GameUser {
 
 	@Column(name = "updated_at")
 	private LocalDateTime updatedAt;
+
+	@Column(name = "best_wpm")
+	private Integer bestWpm = 0;
+
+	@Column(name = "best_accuracy")
+	private Integer bestAccuracy = 0;
 }

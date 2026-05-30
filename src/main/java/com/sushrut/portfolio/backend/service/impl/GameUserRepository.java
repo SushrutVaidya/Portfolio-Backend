@@ -1,5 +1,6 @@
 package com.sushrut.portfolio.backend.service.impl;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -11,5 +12,5 @@ import com.sushrut.portfolio.backend.entities.GameUser;
 @Repository
 public interface GameUserRepository extends JpaRepository<GameUser, UUID> {
 	Optional<GameUser> findByFirstNameAndLastName(String firstName, String lastName);
-
+	List<GameUser> findAllByOrderByCreatedAtAsc();
 }

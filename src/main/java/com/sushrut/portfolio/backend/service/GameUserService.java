@@ -98,4 +98,41 @@ public class GameUserService {
 		GameUserRepo.save(usr);
 		return toResponse(usr);
 	}
+
+	public Map<String, Object> submitScore(UUID id, int wpm, int accuracy) {
+		GameUser usr = GameUserRepo.findById(id)
+				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+		if (wpm > (usr.getBestWpm() == null ? 0 : usr.getBestWpm())) {
+			usr.setBestWpm(wpm);
+		}
+		if (accuracy > (usr.getBestAccuracy() == null ? 0 : usr.getBestAccuracy())) {
+			usr.setBestAccuracy(accuracy);
+		}
+		// level up based on wpm milestone
+		int newLevel = Math.max(1, wpm / 20);
+		if (newLevel > (usr.getLevel() == null ? 1 : usr.getLevel())) {
+			usr.setLevel(newLevel);
+		}
+		usr.setUpdatedAt(LocalDateTime.now());
+		GameUserRepo.save(usr);
+		return java.util.Map.of("bestWpm", usr.getBestWpm(), "bestAccuracy", usr.getBestAccuracy(), "level", usr.getLevel());
+	}
+
+	public List<Map<String, Object>> getLeaderboard() {
+		List<GameUser> users = GameUserRepo.findAllByOrderByCreatedAtAsc();
+		List<Map<String, Object>> result = new java.util.ArrayList<>();
+		for (int i = 0; i < users.size(); i++) {
+			GameUser u = users.get(i);
+			Map<String, Object> entry = new java.util.LinkedHashMap<>();
+			entry.put("rank", i + 1);
+			entry.put("id", u.getId());
+			entry.put("firstName", u.getFirstName());
+			entry.put("lastName", u.getLastName());
+			entry.put("classRole", u.getClassRole());
+			entry.put("level", u.getLevel());
+			entry.put("createdAt", u.getCreatedAt());
+			result.add(entry);
+		}
+		return result;
+	}
 }
