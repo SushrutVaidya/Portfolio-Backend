@@ -31,3 +31,20 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Secrets ###
+.env
+.env.*
+
+### Static assets — in tar, not in git ###
+src/main/resources/static/clips/
+src/main/resources/static/audio/
+src/main/resources/static/kitchen/
+src/main/resources/static/social/
+src/main/resources/static/gamer/
+src/main/resources/static/otaku/
+
+### macOS ###
+.DS_Store
+**/.DS_Store
+*.tar.gz
