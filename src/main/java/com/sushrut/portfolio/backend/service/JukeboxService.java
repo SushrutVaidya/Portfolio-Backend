@@ -10,12 +10,14 @@ public class JukeboxService {
     private static final String BASE = "/audio/";
 
     private static final List<JukeboxTrack> TRACKS = List.of(
-        new JukeboxTrack("Aladeeeeen!",                        "Aladdin (2019)",           BASE + "Aladeeeeen.mp3"),
-        new JukeboxTrack("Everybody Wants to Rule the World",  "Josh Gad Cover",           BASE + "EverybodyWantsToRuleTheWorldJoshGad.mp3"),
-        new JukeboxTrack("Funkadelic",                         "The Playlist",             BASE + "Funkadelic.mp3"),
-        new JukeboxTrack("Lawrie",                             "The Playlist",             BASE + "Lawrie.mp3"),
-        new JukeboxTrack("Man Maze Umalun Gele",               "Marathi Classics",         BASE + "ManMazeUmalunGele.mp3"),
-        new JukeboxTrack("Mi Morcha Nela Nahi",                "Marathi Classics",         BASE + "miMorchaNelaNahi.mp3")
+        new JukeboxTrack("Welcome to Los Santos",                    "GTA V",               BASE + "WelcomeToLosSantos.mp3"),
+        new JukeboxTrack("Soviet Connection",                        "GTA IV",              BASE + "SovietConnection.mp3"),
+        new JukeboxTrack("Bury the Light",                           "Devil May Cry 5",     BASE + "BuryTheLight.mp3"),
+        new JukeboxTrack("Oioi, Seisyundesuka?",                     "Gintama OST",         BASE + "OioiSeisyundesuka.mp3"),
+        new JukeboxTrack("Teme-raaaa!! Soredemo Gintama Tsuitennokaaaa!", "Gintama OST",    BASE + "TemeRaaa.mp3"),
+        new JukeboxTrack("Can't Poop in Strange Places",             "Family Guy",          BASE + "CantPoopInStrangePlaces.mp3"),
+        new JukeboxTrack("Everybody Wants to Rule the World",        "Josh Gad Cover",      BASE + "EverybodyWantsToRuleTheWorldJoshGad.mp3"),
+        new JukeboxTrack("To Be Continued",                          "JoJo's Bizarre Adventure", BASE + "ToBeContinued.mp3")
     );
 
     public List<JukeboxTrack> getTracks() {
