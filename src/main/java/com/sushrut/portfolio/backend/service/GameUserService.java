@@ -11,6 +11,16 @@ import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.sushrut.portfolio.backend.entities.GameUser;
@@ -75,6 +85,7 @@ public class GameUserService {
 		return toResponse(usr);
 	}
 
+	@Transactional
 	public PlayerCardResponse updateCard(UUID id, PlayerCardRequest req) {
 		GameUser usr = GameUserRepo.findById(id)
 				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
@@ -99,6 +110,7 @@ public class GameUserService {
 		return toResponse(usr);
 	}
 
+	@Transactional
 	public Map<String, Object> submitScore(UUID id, int wpm, int accuracy) {
 		GameUser usr = GameUserRepo.findById(id)
 				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
