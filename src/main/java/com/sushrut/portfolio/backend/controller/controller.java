@@ -5,7 +5,6 @@ import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -43,9 +42,6 @@ public class controller {
 	private JukeboxService jukeboxService;
 
 	@Autowired
-	private RedisTemplate<String, String> redisTemplate;
-
-	@Autowired
 	private GameUserService gUserService;
 
 	@Autowired
@@ -67,26 +63,18 @@ public class controller {
 		return Map.of("count", rickrollService.getCount());
 	}
 
-	@GetMapping("/redis/test")
-	public ResponseEntity<Map<String, String>> testRedis() {
-		try {
-			redisTemplate.opsForValue().set("test:key", "test:value");
-			String value = redisTemplate.opsForValue().get("test:key");
-			return ResponseEntity.ok(Map.of("status", "success", "message", "Redis is connected", "test",
-					value != null ? value : "null"));
-		} catch (Exception e) {
-			return ResponseEntity.status(500)
-					.body(Map.of("status", "error", "message", "Redis connection failed: " + e.getMessage()));
-		}
-	}
-
 	@PostMapping("/user")
 	public ResponseEntity<?> registerUser(@RequestBody Map<String, String> body) {
 		String firstName = body.get("firstName");
-		String lastName = body.get("lastName");
-		if (firstName == null || firstName.trim().length() < 2 || lastName == null || lastName.trim().length() < 2) {
+		String lastName  = body.get("lastName");
+		if (firstName == null || firstName.trim().length() < 2
+				|| lastName == null || lastName.trim().length() < 2) {
 			return ResponseEntity.badRequest()
-					.body(Map.of("error", "Name Length is too short honey , Fill in something longer"));
+					.body(Map.of("error", "Name must be at least 2 characters"));
+		}
+		if (firstName.trim().isBlank() || lastName.trim().isBlank()) {
+			return ResponseEntity.badRequest()
+					.body(Map.of("error", "Name cannot be whitespace only"));
 		}
 		GameUser user = gUserService.registerOrGet(firstName.trim(), lastName.trim());
 		return ResponseEntity.ok(user);
@@ -106,9 +94,9 @@ public class controller {
 	@PostMapping("/score")
 	public ResponseEntity<Map<String, Object>> submitScore(@RequestBody Map<String, Object> body) {
 		try {
-			UUID userId = UUID.fromString((String) body.get("userId"));
-			int wpm      = ((Number) body.getOrDefault("wpm",      0)).intValue();
-			int accuracy = ((Number) body.getOrDefault("accuracy", 0)).intValue();
+			UUID userId  = UUID.fromString((String) body.get("userId"));
+			int wpm      = Math.min(300, Math.max(0, ((Number) body.getOrDefault("wpm",      0)).intValue()));
+			int accuracy = Math.min(100, Math.max(0, ((Number) body.getOrDefault("accuracy", 0)).intValue()));
 			return ResponseEntity.ok(gUserService.submitScore(userId, wpm, accuracy));
 		} catch (Exception e) {
 			return ResponseEntity.badRequest().build();
