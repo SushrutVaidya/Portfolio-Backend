@@ -25,6 +25,7 @@ import com.sushrut.portfolio.backend.service.SteamService;
 import com.sushrut.portfolio.backend.service.GameUserService;
 import com.sushrut.portfolio.backend.service.RickrollService;
 import com.sushrut.portfolio.backend.service.JukeboxService;
+import com.sushrut.portfolio.backend.service.PrintRequestService;
 
 import jakarta.validation.Valid;
 
@@ -40,6 +41,9 @@ public class controller {
 
 	@Autowired
 	private JukeboxService jukeboxService;
+
+	@Autowired
+	private PrintRequestService printRequestService;
 
 	@Autowired
 	private GameUserService gUserService;
@@ -116,6 +120,22 @@ public class controller {
 	@GetMapping("/jukebox/tracks")
 	public ResponseEntity<List<JukeboxTrack>> getJukeboxTracks() {
 		return ResponseEntity.ok(jukeboxService.getTracks());
+	}
+
+	@GetMapping("/print-request/count")
+	public ResponseEntity<Map<String, Object>> getPrintCount() {
+		long count = printRequestService.getCount();
+		return ResponseEntity.ok(Map.of("claimed", count, "remaining", Math.max(0, 25 - count), "full", count >= 25));
+	}
+
+	@PostMapping("/print-request")
+	public ResponseEntity<Map<String, Object>> submitPrintRequest(@RequestBody Map<String, String> body) {
+		try {
+			return ResponseEntity.ok(printRequestService.submit(body));
+		} catch (org.springframework.web.server.ResponseStatusException e) {
+			return ResponseEntity.status(e.getStatusCode())
+					.body(Map.of("error", e.getReason() != null ? e.getReason() : "Request failed"));
+		}
 	}
 
 }
