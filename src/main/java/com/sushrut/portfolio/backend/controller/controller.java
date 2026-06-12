@@ -12,7 +12,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.sushrut.portfolio.backend.entities.GameUser;
 import com.sushrut.portfolio.backend.model.JukeboxTrack;
@@ -23,6 +25,7 @@ import com.sushrut.portfolio.backend.model.SteamGameResponse;
 import com.sushrut.portfolio.backend.service.StatsService;
 import com.sushrut.portfolio.backend.service.SteamService;
 import com.sushrut.portfolio.backend.service.GameUserService;
+import com.sushrut.portfolio.backend.service.PhotoUploadService;
 import com.sushrut.portfolio.backend.service.RickrollService;
 import com.sushrut.portfolio.backend.service.JukeboxService;
 import com.sushrut.portfolio.backend.service.PrintRequestService;
@@ -50,6 +53,9 @@ public class controller {
 
 	@Autowired
 	private SteamService steamService;
+
+	@Autowired
+	private PhotoUploadService photoUploadService;
 
 	@GetMapping("/stats")
 	public StatsResponse getStats() {
@@ -93,6 +99,13 @@ public class controller {
 	public ResponseEntity<PlayerCardResponse> updateCard(@PathVariable UUID id,
 			@Valid @RequestBody PlayerCardRequest req) {
 		return ResponseEntity.ok(gUserService.updateCard(id, req));
+	}
+
+	@PostMapping("/user/{id}/photo")
+	public ResponseEntity<PlayerCardResponse> uploadPhoto(@PathVariable UUID id,
+			@RequestParam("file") MultipartFile file) {
+		String url = photoUploadService.saveUserPhoto(id, file);
+		return ResponseEntity.ok(gUserService.updatePhotoUrl(id, url));
 	}
 
 	@PostMapping("/score")

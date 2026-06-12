@@ -102,6 +102,16 @@ public class GameUserService {
 	}
 
 	@Transactional
+	public PlayerCardResponse updatePhotoUrl(UUID id, String photoUrl) {
+		GameUser usr = GameUserRepo.findById(id)
+				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+		usr.setPhotoUrl(photoUrl);
+		usr.setUpdatedAt(LocalDateTime.now());
+		GameUserRepo.save(usr);
+		return toResponse(usr);
+	}
+
+	@Transactional
 	public Map<String, Object> submitScore(UUID id, int wpm, int accuracy) {
 		GameUser usr = GameUserRepo.findById(id)
 				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));

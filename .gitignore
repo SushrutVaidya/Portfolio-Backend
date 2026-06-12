@@ -44,6 +44,13 @@ src/main/resources/static/social/
 src/main/resources/static/gamer/
 src/main/resources/static/otaku/
 
+### User-uploaded files — runtime, not in git ###
+uploads/
+
+### Misc ###
+Yt links
+myenv/
+
 ### macOS ###
 .DS_Store
 **/.DS_Store
