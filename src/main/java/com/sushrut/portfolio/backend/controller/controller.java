@@ -110,14 +110,22 @@ public class controller {
 
 	@PostMapping("/score")
 	public ResponseEntity<Map<String, Object>> submitScore(@RequestBody Map<String, Object> body) {
-		try {
-			UUID userId  = UUID.fromString((String) body.get("userId"));
-			int wpm      = Math.min(300, Math.max(0, ((Number) body.getOrDefault("wpm",      0)).intValue()));
-			int accuracy = Math.min(100, Math.max(0, ((Number) body.getOrDefault("accuracy", 0)).intValue()));
-			return ResponseEntity.ok(gUserService.submitScore(userId, wpm, accuracy));
-		} catch (Exception e) {
-			return ResponseEntity.badRequest().build();
+		// Narrow catch: only bad UUID / missing payload = 400. Everything else
+		// (DB down, user missing, etc.) propagates to GlobalExceptionHandler
+		// which returns a structured response with a real error message and logs.
+		Object rawUserId = body.get("userId");
+		if (rawUserId == null) {
+			return ResponseEntity.badRequest().body(Map.of("error", "userId required"));
 		}
+		UUID userId;
+		try {
+			userId = UUID.fromString(rawUserId.toString());
+		} catch (IllegalArgumentException e) {
+			return ResponseEntity.badRequest().body(Map.of("error", "userId must be a valid UUID"));
+		}
+		int wpm      = Math.min(300, Math.max(0, ((Number) body.getOrDefault("wpm",      0)).intValue()));
+		int accuracy = Math.min(100, Math.max(0, ((Number) body.getOrDefault("accuracy", 0)).intValue()));
+		return ResponseEntity.ok(gUserService.submitScore(userId, wpm, accuracy));
 	}
 
 	@GetMapping("/leaderboard")
