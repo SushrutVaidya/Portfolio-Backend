@@ -4,15 +4,28 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 import jakarta.persistence.Column;
-//import jakarta.annotation.Generated;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.Data;
 
 @Data
 @Entity
+@Table(
+    indexes = {
+        // findAllByOrderByCreatedAtAsc drives the leaderboard — index it
+        @Index(name = "idx_gameuser_created_at", columnList = "created_at")
+    },
+    uniqueConstraints = {
+        // registerOrGet relies on this being unique — enforce at DB level so
+        // concurrent registers can't create duplicate rows for the same name
+        @UniqueConstraint(name = "uk_gameuser_name", columnNames = {"first_name", "last_name"})
+    }
+)
 public class GameUser {
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
