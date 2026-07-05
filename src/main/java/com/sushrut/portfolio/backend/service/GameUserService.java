@@ -155,7 +155,7 @@ public class GameUserService {
 	}
 
 	public List<Map<String, Object>> getLeaderboard() {
-		List<GameUser> users = GameUserRepo.findAllByOrderByCreatedAtAsc();
+		List<GameUser> users = GameUserRepo.findTop100ByOrderByCreatedAtAsc();
 		List<Map<String, Object>> result = new java.util.ArrayList<>();
 		for (int i = 0; i < users.size(); i++) {
 			GameUser u = users.get(i);

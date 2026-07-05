@@ -7,6 +7,8 @@ import java.nio.file.Paths;
 import java.util.Set;
 import java.util.UUID;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -17,6 +19,8 @@ import net.coobird.thumbnailator.Thumbnails;
 
 @Service
 public class PhotoUploadService {
+
+	private static final Logger log = LoggerFactory.getLogger(PhotoUploadService.class);
 
 	private static final long MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 	private static final Set<String> ALLOWED_TYPES = Set.of(
@@ -54,8 +58,12 @@ public class PhotoUploadService {
 
 			return "/uploads/" + userId.toString() + ".jpg?v=" + System.currentTimeMillis();
 		} catch (IOException e) {
+			// Log the real cause server-side (paths, IO errno, Thumbnailator
+			// internals) but return a generic message — avoid leaking system
+			// details to unauthenticated callers.
+			log.error("Photo upload failed for userId={}", userId, e);
 			throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
-					"Failed to process image: " + e.getMessage());
+					"Could not process image. Try a different file.");
 		}
 	}
 }

@@ -3,7 +3,7 @@
 # Assumes layout on the OCI VM:
 #   /home/ubuntu/
 #     ├── Portfolio-Backend/        ← git clone, this file lives here
-#     │   ├── docker-compose.yml    (this file)
+#     │   ├── docker-compose.yml    (this file — production, no host ports)
 #     │   ├── .env                  (copy from .env.template, fill values)
 #     │   ├── Dockerfile            (backend)
 #     │   └── src/main/resources/static/   (extracted from tar)
@@ -12,17 +12,42 @@
 #     │   └── nginx-reverse-proxy.conf
 #     └── certbot/                  (created on first run by certbot)
 #
-# Run from /home/ubuntu/Portfolio-Backend with:
-#   docker compose up -d --build
+# LOCAL DEV: `docker-compose.override.yml` (also in this dir) is auto-merged
+# by `docker compose up` and re-exposes 8081/8080/5432 on the host. To ignore
+# it explicitly on OCI, run:
+#   docker compose -f docker-compose.yml up -d --build
+# or simply do not check the override file into the OCI clone.
+#
+# IMAGE TAGS are pinned to a specific minor. Bump deliberately (test locally
+# via override), never rely on `latest` — an alpine base bump can silently
+# break TLS ciphers or nginx directives on next OCI pull.
+#
+# RESOURCE LIMITS: OCI Always-Free is 24GB / 4 OCPU, but a single runaway
+# JVM heap or postgres query can OOM the whole VM and kill nginx too. Every
+# service has an explicit mem_limit + cpus so the kernel OOM-killer targets
+# the offender, not the reverse proxy.
+#
+# LOG ROTATION: default docker json-file driver never rotates. On a long-
+# running VM the container log files silently fill the root disk. Every
+# service caps at 30MB retained (3× 10MB rolling).
+
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
 
 services:
   # ─────────────────────────────────────────────────────
   # Postgres — primary data store
   # ─────────────────────────────────────────────────────
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16.4-alpine
     container_name: portfolio-postgres
     restart: unless-stopped
+    logging: *default-logging
+    mem_limit: 1g
+    cpus: 1.5
     environment:
       POSTGRES_DB:       ${POSTGRES_DB}
       POSTGRES_USER:     ${POSTGRES_USER}
@@ -37,7 +62,7 @@ services:
     networks: [devquest]
 
   # ─────────────────────────────────────────────────────
-  # Spring Boot backend (port 8081 internal only)
+  # Spring Boot backend (port 8081 — internal network only in prod)
   # ─────────────────────────────────────────────────────
   portfolio-backend:
     build:
@@ -45,9 +70,19 @@ services:
       dockerfile: Dockerfile
     container_name: portfolio-backend
     restart: unless-stopped
+    logging: *default-logging
+    mem_limit: 1g
+    cpus: 2
+    # Cap JVM heap so Boot doesn't try to grab 8GB of the shared VM.
+    # -Xmx must be < mem_limit above; keep ~256M headroom for metaspace/
+    # native buffers/Netty direct memory.
     env_file: .env
     environment:
-      # Spring uses these — explicit to avoid surprises
+      # Heap sizing — JAVA_TOOL_OPTIONS is auto-honored by the JVM launcher,
+      # so this drives -Xmx without needing shell interpolation in the Dockerfile.
+      # -Xmx768m stays comfortably below mem_limit=1g, leaving headroom for
+      # metaspace (~150M) and native buffers (Netty direct memory, JNI).
+      JAVA_TOOL_OPTIONS: "-Xmx768m -Xss512k"
       DB_HOST:     postgres
       DB_USERNAME: ${POSTGRES_USER}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
@@ -66,7 +101,7 @@ services:
     networks: [devquest]
 
   # ─────────────────────────────────────────────────────
-  # Static frontend (nginx, port 8080 internal only)
+  # Static frontend (nginx, port 8080 — internal network only in prod)
   # ─────────────────────────────────────────────────────
   portfolio-frontend:
     build:
@@ -74,20 +109,31 @@ services:
       dockerfile: Dockerfile
     container_name: portfolio-frontend
     restart: unless-stopped
+    logging: *default-logging
+    mem_limit: 256m
+    cpus: 0.5
     networks: [devquest]
 
   # ─────────────────────────────────────────────────────
   # Public-facing reverse proxy — TLS + routing
+  #
+  # docker.sock is mounted read-only so the certbot sidecar's post-hook
+  # can `docker kill -s HUP portfolio-nginx` after a successful renewal.
+  # nginx receives SIGHUP → graceful reload without dropping connections.
   # ─────────────────────────────────────────────────────
   nginx-proxy:
-    image: nginx:alpine
+    image: nginx:1.27-alpine
     container_name: portfolio-nginx
     restart: unless-stopped
+    logging: *default-logging
+    mem_limit: 256m
+    cpus: 1
     ports:
       - "80:80"
       - "443:443"
     volumes:
       - ../Portfolio-Frontend/nginx-reverse-proxy.conf:/etc/nginx/conf.d/default.conf:ro
+      - ../Portfolio-Frontend/nginx-snippets:/etc/nginx/snippets:ro
       - letsencrypt:/etc/letsencrypt:ro
       - certbot_www:/var/www/certbot:ro
     depends_on:
@@ -96,22 +142,79 @@ services:
     networks: [devquest]
 
   # ─────────────────────────────────────────────────────
-  # Let's Encrypt cert renewal sidecar
-  # Renews twice daily; nginx reloads automatically via shared volume
+  # Let's Encrypt cert renewal sidecar.
+  #
+  # Runs `certbot renew` every 12h. `--deploy-hook` fires ONLY when a cert
+  # was actually renewed (not on every no-op check), and signals the nginx
+  # container to reload via the docker socket. Without this, nginx would
+  # keep serving the expired cert until manual `docker restart`.
+  #
+  # docker.sock is mounted so certbot can send SIGHUP to one named
+  # container. `apk add --no-cache docker-cli` at startup adds the ~15MB
+  # CLI to the Alpine-based certbot image — one-time on container start.
   # ─────────────────────────────────────────────────────
   certbot:
-    image: certbot/certbot
+    image: certbot/certbot:v2.11.0
     container_name: portfolio-certbot
     restart: unless-stopped
+    logging: *default-logging
+    mem_limit: 128m
+    cpus: 0.5
     volumes:
       - letsencrypt:/etc/letsencrypt
       - certbot_www:/var/www/certbot
+      - /var/run/docker.sock:/var/run/docker.sock
+    entrypoint: >-
+      sh -c "apk add --no-cache docker-cli >/dev/null;
+             trap exit TERM;
+             while :;
+               do certbot renew --webroot -w /var/www/certbot --quiet
+                    --deploy-hook 'docker kill -s HUP portfolio-nginx || echo cert-reload-failed';
+               sleep 12h & wait $${!};
+             done"
+
+  # ─────────────────────────────────────────────────────
+  # Nightly pg_dump — bind-mounts to /home/ubuntu/backups on the host so
+  # backups survive `docker compose down -v`. Keeps the last 7 dumps.
+  #
+  # Restore:  gunzip -c backup-YYYYMMDD.sql.gz | docker exec -i portfolio-postgres psql -U $POSTGRES_USER $POSTGRES_DB
+  #
+  # For off-box durability, sync /home/ubuntu/backups → OCI Object Storage
+  # via a host-level cron (`oci os object put ...`). Not done inside this
+  # container because Object Storage creds don't belong in the compose net.
+  #
+  # restart: on-failure caps retries so a broken bind-mount or dead DB
+  # doesn't cause an infinite restart loop pinning the CPU.
+  # ─────────────────────────────────────────────────────
+  postgres-backup:
+    image: postgres:16.4-alpine
+    container_name: portfolio-pgbackup
+    restart: on-failure:3
+    logging: *default-logging
+    mem_limit: 256m
+    cpus: 0.5
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST:     postgres
+      PGUSER:     ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB}
+    volumes:
+      - ./backups:/backups
     entrypoint: >-
       sh -c "trap exit TERM;
              while :;
-               do certbot renew --webroot -w /var/www/certbot --quiet;
-               sleep 12h & wait $${!};
+               do TS=$$(date +%Y%m%d-%H%M%S);
+                  echo \"[pgbackup] dumping $$TS\";
+                  pg_dump --no-owner --no-acl --clean --if-exists | gzip -9 > /backups/dq-$$TS.sql.gz
+                    && echo \"[pgbackup] wrote /backups/dq-$$TS.sql.gz ($$(du -h /backups/dq-$$TS.sql.gz | cut -f1))\"
+                    || echo \"[pgbackup] FAILED for $$TS\";
+                  find /backups -name 'dq-*.sql.gz' -mtime +7 -delete;
+                  sleep 24h & wait $${!};
              done"
+    networks: [devquest]
 
 volumes:
   pgdata:        # Postgres data — survives container removal

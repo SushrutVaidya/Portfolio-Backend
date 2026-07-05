@@ -63,10 +63,22 @@ public class PrintRequestService {
         String name    = body.getOrDefault("fullName",     "").trim();
         String addr1   = body.getOrDefault("addressLine1", "").trim();
         String pincode = body.getOrDefault("pincode",      "").trim();
-        String phone   = body.getOrDefault("phone",        "").trim();
+        String phone   = body.getOrDefault("phone",        "").trim().replaceAll("[\\s-]", "");
 
-        if (name.length() < 2 || addr1.isEmpty() || pincode.length() != 6 || phone.length() < 10) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing or invalid fields");
+        // Basic length + format checks. Loose regex — we accept +91 prefixes,
+        // hyphens are already stripped above. Anything cross-checked more
+        // rigidly here just annoys legitimate users on a portfolio site.
+        if (name.length() < 2 || name.length() > 100) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Full name must be 2–100 characters");
+        }
+        if (addr1.isEmpty() || addr1.length() > 200) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Address is required (max 200 chars)");
+        }
+        if (!pincode.matches("\\d{6}")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Pincode must be exactly 6 digits");
+        }
+        if (!phone.matches("\\+?\\d{10,15}")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Phone must be 10–15 digits (optional + prefix)");
         }
 
         PrintRequest pr = new PrintRequest();
