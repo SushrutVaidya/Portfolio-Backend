@@ -36,6 +36,9 @@ build/
 .env
 .env.*
 
+### Local-only compose (host port exposure) ###
+docker-compose.override.yml
+
 ### Static assets — in tar, not in git ###
 src/main/resources/static/clips/
 src/main/resources/static/audio/
@@ -46,6 +49,9 @@ src/main/resources/static/otaku/
 
 ### User-uploaded files — runtime, not in git ###
 uploads/
+
+### DB backups — bind-mounted by postgres-backup sidecar ###
+backups/
 
 ### Misc ###
 Yt links

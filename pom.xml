@@ -92,6 +92,31 @@
     <artifactId>thumbnailator</artifactId>
     <version>0.4.20</version>
 </dependency>
+<!-- Flyway — versioned schema migrations. Boot autoconfigures it against
+     the primary DataSource on startup. baseline-on-migrate lets it adopt
+     the existing EC2/prod DB without wiping it. -->
+<dependency>
+    <groupId>org.flywaydb</groupId>
+    <artifactId>flyway-core</artifactId>
+</dependency>
+<dependency>
+    <groupId>org.flywaydb</groupId>
+    <artifactId>flyway-database-postgresql</artifactId>
+</dependency>
+<!-- Testcontainers — integration tests spin up a real Postgres in Docker
+     so we exercise the actual JDBC + JPA + Flyway path, not H2 quirks. -->
+<dependency>
+    <groupId>org.testcontainers</groupId>
+    <artifactId>junit-jupiter</artifactId>
+    <version>1.20.4</version>
+    <scope>test</scope>
+</dependency>
+<dependency>
+    <groupId>org.testcontainers</groupId>
+    <artifactId>postgresql</artifactId>
+    <version>1.20.4</version>
+    <scope>test</scope>
+</dependency>
 	</dependencies>
 
 	<build>
@@ -119,6 +144,51 @@
 						</exclude>
 					</excludes>
 				</configuration>
+			</plugin>
+			<!-- JaCoCo — coverage gate. Fails `mvn verify` if instruction
+			     coverage drops below the threshold below. Starting bar is
+			     modest (30%) because there's a lot of DTO/Lombok noise;
+			     ratchet it upward as real tests land. Excludes DTOs and
+			     the entrypoint class from the count. -->
+			<plugin>
+				<groupId>org.jacoco</groupId>
+				<artifactId>jacoco-maven-plugin</artifactId>
+				<version>0.8.12</version>
+				<executions>
+					<execution>
+						<id>prepare-agent</id>
+						<goals><goal>prepare-agent</goal></goals>
+					</execution>
+					<execution>
+						<id>report</id>
+						<phase>verify</phase>
+						<goals><goal>report</goal></goals>
+					</execution>
+					<execution>
+						<id>check</id>
+						<phase>verify</phase>
+						<goals><goal>check</goal></goals>
+						<configuration>
+							<rules>
+								<rule>
+									<element>BUNDLE</element>
+									<limits>
+										<limit>
+											<counter>INSTRUCTION</counter>
+											<value>COVEREDRATIO</value>
+											<minimum>0.30</minimum>
+										</limit>
+									</limits>
+								</rule>
+							</rules>
+							<excludes>
+								<exclude>com/sushrut/portfolio/backend/PortfolioBackendApplication.*</exclude>
+								<exclude>com/sushrut/portfolio/backend/model/**</exclude>
+								<exclude>com/sushrut/portfolio/backend/entities/**</exclude>
+							</excludes>
+						</configuration>
+					</execution>
+				</executions>
 			</plugin>
 		</plugins>
 	</build>
