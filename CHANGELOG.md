@@ -255,3 +255,84 @@ Flyway migrations with a safety net, comprehensive test coverage on
 the auth/mutation/validation paths, testcontainers integration test
 proving the whole stack boots, cross-browser Playwright E2E, a
 step-by-step runbook covering rollback.
+
+---
+
+## Bug-audit + polish pass (branch: `bug-audit-2026-07-06`)
+
+Second pass. Focused on real bugs users would hit + polish. Every
+item below shipped as its own commit for easy revert. All verified
+either by measurement (traces) or by user hard-refresh + repro.
+
+### Bug fixes
+
+- **`cf77d5a` — cursor: 3-second lag on page open + 16k×16k compositor layer**
+  Layout-thrashing `left/top`/`width`/`height`/`margin` mutations plus
+  `will-change: transform` on a `position: fixed` element reserved
+  Chrome's max-texture layer. Rewrite: pure `transform: translate3d + scale`,
+  removed `will-change`, added `contain: layout paint style`, init immediately
+  instead of on DOMContentLoaded. Cursor paint count dropped 173 → 22 across
+  successive traces.
+
+- **`a522c08` — landing: navigation-time tab crash (~all users leaving landing)**
+  Trace `20260706T220421` caught the pattern: five 366-392ms GPU tasks in a
+  550ms window during `LocalFrame::Navigate` because 5 landing elements had
+  auto-composited max-texture layers (3 orbs × `filter: blur(40px)`, header
+  `backdrop-filter: blur(24px)`, misc transitioning elements). Fix: dropped
+  filter blur from orbs entirely (radial-gradient stops at transparent — already
+  soft) and reduced header blur to 8px. User-confirmed working.
+
+- **`09f076d` — CSP: whitelist images.unsplash.com and *.steamstatic.com**
+  Aboutme was showing broken Steam game headers + kitchen polaroids.
+  Steam CDN rotates between `cdn.`, `cdn.cloudflare.`, and
+  `shared.cloudflare.steamstatic.com` — one wildcard covers all. Applied
+  in `nginx.conf` (baked container) and `nginx-snippets/security-headers.conf`
+  (mounted, covers nginx-local + prod reverse proxy).
+
+- **`42141f6` — incident: reduce backdrop-filter blur (40→10, 24→8)**
+  Same anti-pattern as prior fixes on captcha, aboutme nav, landing header.
+  75-94% opaque backgrounds pay for filter blur that's invisible under the
+  opacity level. 10px keeps the frosted-glass look at a fraction of shader cost.
+
+- **`c03096c` — devtype: cursor position via `transform` instead of `left`**
+  The blinking word cursor was positioned via `left: var(--cur, 0px)` and JS
+  wrote to `--cur` on every keystroke. `left` on a positioned element triggers
+  a layout pass per input event. Swapped to `transform: translateX(var(--cur))`
+  with `left: 0` as anchor — compositor-only, no layout. Zero visible change,
+  fewer per-keystroke jank spikes.
+
+- **`c0346dd` — aboutme (prod): reduce sticky tab-bar backdrop blur 20→8**
+  Same class of fix as the landing header. Sticky element with 75%-opaque
+  background didn't need blur(20). Reduces per-scroll backdrop-filter cost
+  across the whole page.
+
+### Accessibility
+
+- **`288d3e2` — respect `prefers-reduced-motion` on all pages**
+  Five CSS files (`captcha.css`, `devtype.css`, `incident.css`, `shared.css`,
+  `styles.css`) had no reduced-motion handling — users with the OS setting
+  on were still getting full-speed animations. Added universal selector
+  kill-switch in `shared.css` (baseline for all devquest pages) and
+  `styles.css` (top-level). Existing per-page reduced-motion blocks stay
+  as additive overrides.
+
+### Intentionally deferred
+
+- **Motion tokens (unify duration + easing across the site)** — audit found
+  148 uses of `ease` alongside 44 uses of `cubic-bezier(0.16, 1, 0.3, 1)`;
+  durations scattered across `0.15s, 0.2s, 0.25s, 0.3s, 0.35s, 0.4s, 0.5s`.
+  Formalizing as `--dur-*` and `--ease-*` tokens would take 200+ rule touches
+  with high regression risk and no visible improvement unless side-by-side
+  A/B'd. Skipped — pattern is documented in `PERFORMANCE_NOTES.md` for whoever
+  picks it up later.
+
+- **`will-change` scoping** — most current placements are reasonable (nav,
+  cover-flow card, cursor). A blanket audit would need per-site FPS proof
+  to be worth the risk of unintended flicker. Skipped on the "when in doubt,
+  skip" discipline.
+
+- **Layout-triggering slide-in transitions on devtype/incident** (autocomplete
+  popup, toast, difficulty picker) — 4 sites where `transition: left/top`
+  fires ONCE per user action, not per keystroke. Not hot-path jank. Left
+  alone; noted in `PERFORMANCE_NOTES.md`.
+
