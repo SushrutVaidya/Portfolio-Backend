@@ -75,10 +75,14 @@ OCPUS=1
 MEMORY_GB=6
 BOOT_VOL_GB=50   # 50GB is the free-tier max per instance
 
-# Retry pacing. OCI rate-limits at ~5 req/min per user, so 45s is safe.
-SLEEP_ON_CAPACITY=45
-SLEEP_ON_RATE_LIMIT=180
-SLEEP_ON_UNKNOWN=60
+# Retry pacing. Observed behavior: OCI rate-limits at roughly 3 launch
+# calls per 5 minutes per user. Original 45s sleep tripped the limit on
+# every 3rd attempt (33% waste). 60s sleep pushes cycle to ~2:37 and
+# reduces rate-limit hits substantially without meaningfully cutting
+# attempts-per-hour.
+SLEEP_ON_CAPACITY=60
+SLEEP_ON_RATE_LIMIT=300
+SLEEP_ON_UNKNOWN=90
 
 # Fault domains to rotate through (Hyderabad AD-1 has all three).
 FAULT_DOMAINS=("FAULT-DOMAIN-1" "FAULT-DOMAIN-2" "FAULT-DOMAIN-3")
