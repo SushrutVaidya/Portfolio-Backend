@@ -16,8 +16,7 @@ public class JukeboxService {
         new JukeboxTrack("Oioi, Seisyundesuka?",                     "Gintama OST",         BASE + "OioiSeisyundesuka.mp3"),
         new JukeboxTrack("Teme-raaaa!! Soredemo Gintama Tsuitennokaaaa!", "Gintama OST",    BASE + "TemeRaaa.mp3"),
         new JukeboxTrack("Can't Poop in Strange Places",             "Family Guy",          BASE + "CantPoopInStrangePlaces.mp3"),
-        new JukeboxTrack("Everybody Wants to Rule the World",        "Josh Gad Cover",      BASE + "EverybodyWantsToRuleTheWorldJoshGad.mp3"),
-        new JukeboxTrack("To Be Continued",                          "JoJo's Bizarre Adventure", BASE + "ToBeContinued.mp3")
+        new JukeboxTrack("Everybody Wants to Rule the World",        "Josh Gad Cover",      BASE + "EverybodyWantsToRuleTheWorldJoshGad.mp3")
     );
 
     public List<JukeboxTrack> getTracks() {
