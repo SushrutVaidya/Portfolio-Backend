@@ -36,11 +36,11 @@ EXPOSE 8081
 HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
   CMD wget --quiet --tries=1 --spider http://localhost:8081/actuator/health || exit 1
 
-# Run the application with optimized JVM settings for small instances
+# Run the application. Heap sizing lives in docker-compose.yml via
+# JAVA_TOOL_OPTIONS (auto-picked-up by the JVM launcher), so the same
+# image runs everywhere and only the compose spec decides memory.
 ENTRYPOINT ["java", \
-    "-Xms128m", \
-    "-Xmx256m", \
-    "-XX:+UseSerialGC", \
+    "-XX:+UseG1GC", \
     "-XX:MaxRAMPercentage=75.0", \
     "-Djava.security.egd=file:/dev/./urandom", \
     "-jar", "app.jar"]

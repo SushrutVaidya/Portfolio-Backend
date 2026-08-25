@@ -22,6 +22,7 @@ import com.sushrut.portfolio.backend.model.PlayerCardRequest;
 import com.sushrut.portfolio.backend.model.PlayerCardResponse;
 import com.sushrut.portfolio.backend.model.StatsResponse;
 import com.sushrut.portfolio.backend.model.SteamGameResponse;
+import com.sushrut.portfolio.backend.service.AuthTokenService;
 import com.sushrut.portfolio.backend.service.StatsService;
 import com.sushrut.portfolio.backend.service.SteamService;
 import com.sushrut.portfolio.backend.service.GameUserService;
@@ -30,6 +31,7 @@ import com.sushrut.portfolio.backend.service.RickrollService;
 import com.sushrut.portfolio.backend.service.JukeboxService;
 import com.sushrut.portfolio.backend.service.PrintRequestService;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 
 @RestController
@@ -56,6 +58,9 @@ public class controller {
 
 	@Autowired
 	private PhotoUploadService photoUploadService;
+
+	@Autowired
+	private AuthTokenService auth;
 
 	@GetMapping("/stats")
 	public StatsResponse getStats() {
@@ -87,7 +92,17 @@ public class controller {
 					.body(Map.of("error", "Name cannot be whitespace only"));
 		}
 		GameUser user = gUserService.registerOrGet(firstName.trim(), lastName.trim());
-		return ResponseEntity.ok(user);
+		// Mint an HMAC token bound to this user's UUID. Client stores it and
+		// sends X-DQ-Token on every mutating request. Deterministic — same user
+		// always gets the same token, so existing users re-registering with the
+		// same name get their token back (no data migration needed).
+		String token = auth.generateToken(user.getId());
+		return ResponseEntity.ok(Map.of(
+			"id",        user.getId(),
+			"firstName", user.getFirstName(),
+			"lastName",  user.getLastName(),
+			"token",     token
+		));
 	}
 
 	@GetMapping("/user/{id}/card")
@@ -97,27 +112,41 @@ public class controller {
 
 	@PutMapping("/user/{id}/card")
 	public ResponseEntity<PlayerCardResponse> updateCard(@PathVariable UUID id,
-			@Valid @RequestBody PlayerCardRequest req) {
+			@Valid @RequestBody PlayerCardRequest req, HttpServletRequest http) {
+		auth.assertOwns(id, http);
 		return ResponseEntity.ok(gUserService.updateCard(id, req));
 	}
 
 	@PostMapping("/user/{id}/photo")
 	public ResponseEntity<PlayerCardResponse> uploadPhoto(@PathVariable UUID id,
-			@RequestParam("file") MultipartFile file) {
+			@RequestParam("file") MultipartFile file, HttpServletRequest http) {
+		auth.assertOwns(id, http);
 		String url = photoUploadService.saveUserPhoto(id, file);
 		return ResponseEntity.ok(gUserService.updatePhotoUrl(id, url));
 	}
 
 	@PostMapping("/score")
-	public ResponseEntity<Map<String, Object>> submitScore(@RequestBody Map<String, Object> body) {
-		try {
-			UUID userId  = UUID.fromString((String) body.get("userId"));
-			int wpm      = Math.min(300, Math.max(0, ((Number) body.getOrDefault("wpm",      0)).intValue()));
-			int accuracy = Math.min(100, Math.max(0, ((Number) body.getOrDefault("accuracy", 0)).intValue()));
-			return ResponseEntity.ok(gUserService.submitScore(userId, wpm, accuracy));
-		} catch (Exception e) {
-			return ResponseEntity.badRequest().build();
+	public ResponseEntity<Map<String, Object>> submitScore(@RequestBody Map<String, Object> body,
+			HttpServletRequest http) {
+		// Narrow catch: only bad UUID / missing payload = 400. Everything else
+		// (DB down, user missing, etc.) propagates to GlobalExceptionHandler
+		// which returns a structured response with a real error message and logs.
+		Object rawUserId = body.get("userId");
+		if (rawUserId == null) {
+			return ResponseEntity.badRequest().body(Map.of("error", "userId required"));
 		}
+		UUID userId;
+		try {
+			userId = UUID.fromString(rawUserId.toString());
+		} catch (IllegalArgumentException e) {
+			return ResponseEntity.badRequest().body(Map.of("error", "userId must be a valid UUID"));
+		}
+		// Auth check after we know userId parses — otherwise error would be
+		// "unauthorized" when the real issue is a malformed request.
+		auth.assertOwns(userId, http);
+		int wpm      = Math.min(300, Math.max(0, ((Number) body.getOrDefault("wpm",      0)).intValue()));
+		int accuracy = Math.min(100, Math.max(0, ((Number) body.getOrDefault("accuracy", 0)).intValue()));
+		return ResponseEntity.ok(gUserService.submitScore(userId, wpm, accuracy));
 	}
 
 	@GetMapping("/leaderboard")

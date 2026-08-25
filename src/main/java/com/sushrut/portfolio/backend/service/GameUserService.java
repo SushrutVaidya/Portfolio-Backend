@@ -25,14 +25,37 @@ public class GameUserService {
 	private GameUserRepository GameUserRepo;
 
 	public GameUser registerOrGet(String firstName, String lastName) {
-		Optional<GameUser> existing = GameUserRepo.findByFirstNameAndLastName(firstName, lastName);
+		// Canonicalize: Title Case, trim, collapse internal whitespace.
+		// Prevents duplicate rows for "sushrut vaidya" vs "Sushrut Vaidya"
+		// vs "SUSHRUT  VAIDYA" — the DB unique constraint we just added would
+		// reject the concurrent-insert case, but this also fixes the sequential
+		// "user typed name slightly differently second visit" scenario.
+		String canonFirst = canonicalize(firstName);
+		String canonLast  = canonicalize(lastName);
+		Optional<GameUser> existing = GameUserRepo.findByFirstNameAndLastName(canonFirst, canonLast);
 		if (existing.isPresent()) {
 			return existing.get();
 		}
 		GameUser user = new GameUser();
-		user.setFirstName(firstName);
-		user.setLastName(lastName);
+		user.setFirstName(canonFirst);
+		user.setLastName(canonLast);
 		return GameUserRepo.save(user);
+	}
+
+	private static String canonicalize(String s) {
+		if (s == null) return "";
+		String cleaned = s.trim().replaceAll("\\s+", " ");
+		if (cleaned.isEmpty()) return "";
+		// Title-case: first letter upper, rest lower per word
+		StringBuilder out = new StringBuilder(cleaned.length());
+		boolean nextUpper = true;
+		for (int i = 0; i < cleaned.length(); i++) {
+			char c = cleaned.charAt(i);
+			if (Character.isWhitespace(c)) { out.append(c); nextUpper = true; continue; }
+			out.append(nextUpper ? Character.toUpperCase(c) : Character.toLowerCase(c));
+			nextUpper = false;
+		}
+		return out.toString();
 	}
 
 	private PlayerCardResponse toResponse(GameUser usr) {
@@ -132,7 +155,7 @@ public class GameUserService {
 	}
 
 	public List<Map<String, Object>> getLeaderboard() {
-		List<GameUser> users = GameUserRepo.findAllByOrderByCreatedAtAsc();
+		List<GameUser> users = GameUserRepo.findTop100ByOrderByCreatedAtAsc();
 		List<Map<String, Object>> result = new java.util.ArrayList<>();
 		for (int i = 0; i < users.size(); i++) {
 			GameUser u = users.get(i);
