@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Structured JSON logging via logback's built-in PatternLayout — no
+  extra dependency (keeps the OCI Always-Free footprint small).
+
+  Each line is single-line JSON, safe to pipe into `jq`, Loki, or any
+  cloud log aggregator. The `requestId` field is populated by
+  RequestIdFilter.java (empty string if outside a request scope).
+
+  We escape user-controllable fields (%message, thread name) using
+  `%replace(...){'"','\\"'}` so a log message containing a stray quote
+  can't corrupt the JSON envelope.
+-->
+<configuration>
+
+    <!-- Human-readable console pattern used during local dev.
+         Spring's default `spring.profiles.active` is empty → this is inactive. -->
+    <springProfile name="local">
+        <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+                <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{20} [rid=%X{requestId:-}] - %msg%n</pattern>
+            </encoder>
+        </appender>
+        <root level="INFO">
+            <appender-ref ref="STDOUT"/>
+        </root>
+    </springProfile>
+
+    <!-- Default (prod on OCI): single-line JSON per event.
+         Exception stack traces are escaped so newlines and quotes stay
+         inside the JSON string — one log record = one grep-able line. -->
+    <springProfile name="!local">
+        <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+                <pattern>{"ts":"%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX}","level":"%level","logger":"%logger{40}","thread":"%replace(%thread){'\"','\\\"'}","requestId":"%X{requestId:-}","msg":"%replace(%replace(%message){'\"','\\\"'}){'[\r\n]+',' '}","exception":"%replace(%replace(%ex){'\"','\\\"'}){'[\r\n]+','\\\\n'}"}%n</pattern>
+            </encoder>
+        </appender>
+        <root level="INFO">
+            <appender-ref ref="JSON"/>
+        </root>
+    </springProfile>
+
+    <!-- Keep noisy loggers muted (matches application.properties overrides) -->
+    <logger name="org.apache.tomcat.util.net.Acceptor"   level="ERROR"/>
+    <logger name="org.apache.tomcat.util.net.NioEndpoint" level="ERROR"/>
+
+</configuration>
